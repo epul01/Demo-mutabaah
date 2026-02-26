@@ -1,0 +1,146 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication - supports Guru and Wali roles
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   // "GURU" or "WALI"
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  santri    Santri?  @relation("UserSantri", fields: [userId], references: [id])
+  userId    String?  @unique
+  
+  // For wali - the santri they are guardian of
+  santriWali Santri?  @relation("WaliSantri")
+  
+  // For guru - hafalan records they input
+  hafalanInput Hafalan[] @relation("GuruInput")
+  
+  notifikasi Notifikasi[]
+}
+
+// Santri (Student) model
+model Santri {
+  id            String   @id @default(cuid())
+  name          String
+  nis           String   @unique  // Nomor Induk Santri
+  tempatLahir   String?
+  tanggalLahir  DateTime?
+  jenisKelamin  String?  // "L" or "P"
+  alamat        String?
+  telepon       String?
+  tanggalMasuk  DateTime @default(now())
+  status        String   @default("AKTIF")  // "AKTIF", "NONAKTIF", "LULUS"
+  
+  // Relations - User account for this santri (if they have one)
+  user          User?    @relation("UserSantri")
+  
+  // Wali (guardian) relation
+  waliId        String?  @unique
+  wali          User?    @relation("WaliSantri", fields: [waliId], references: [id])
+  
+  // Hafalan data
+  totalJuz      Int      @default(0)
+  targetJuz     Int      @default(30)
+  targetTahunan Int      @default(5)  // Target per tahun
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  hafalan       Hafalan[]
+  laporanBulanan LaporanBulanan[]
+  laporanSemester LaporanSemester[]
+}
+
+// Hafalan (Memorization) records
+model Hafalan {
+  id            String   @id @default(cuid())
+  santriId      String
+  santri        Santri   @relation(fields: [santriId], references: [id])
+  
+  tanggal       DateTime @default(now())
+  juz           Int      // 1-30
+  surah         String
+  ayatMulai     Int
+  ayatSelesai   Int
+  jenisSetoran  String   // "ZIYADAH" or "MURAJAAH"
+  nilai         String   // "A", "A-", "B+", "B", "C"
+  catatan       String?
+  
+  guruId        String
+  guru          User     @relation("GuruInput", fields: [guruId], references: [id])
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// Monthly report
+model LaporanBulanan {
+  id            String   @id @default(cuid())
+  santriId      String
+  santri        Santri   @relation(fields: [santriId], references: [id])
+  
+  bulan         Int      // 1-12
+  tahun         Int
+  
+  totalSetoran  Int      @default(0)
+  ziyadahCount  Int      @default(0)
+  murajaahCount Int      @default(0)
+  nilaiRataRata String?
+  halamanBaru   Int      @default(0)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([santriId, bulan, tahun])
+}
+
+// Semester report
+model LaporanSemester {
+  id            String   @id @default(cuid())
+  santriId      String
+  santri        Santri   @relation(fields: [santriId], references: [id])
+  
+  semester      Int      // 1 or 2
+  tahunAjaran   String   // e.g., "2025/2026"
+  
+  totalSetoran  Int      @default(0)
+  tambahanJuz   Int      @default(0)
+  murajaahCount Int      @default(0)
+  nilaiRataRata String?
+  kehadiran     Int      @default(0)  // percentage
+  juzAwal       Int      @default(0)
+  juzAkhir      Int      @default(0)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([santriId, semester, tahunAjaran])
+}
+
+// Notification model
+model Notifikasi {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  judul       String
+  pesan       String
+  tipe        String   // "INFO", "WARNING", "SUCCESS"
+  dibaca      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
